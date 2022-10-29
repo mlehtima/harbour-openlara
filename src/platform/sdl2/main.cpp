@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <pwd.h>
 
+#include <list>
+
 #include <SDL2/SDL.h>
 
 #include "game.h"
@@ -82,6 +84,17 @@ void sndFree() {
 #define JOY_DEAD_ZONE_STICK      8192
 #define WIN_W 640
 #define WIN_H 480
+
+class TouchPoint {
+    public:
+        TouchPoint(int id, float x, float y) : id(id), x(x), y(y) {}
+
+        int id;
+        float x;
+        float y;
+};
+
+std::list<TouchPoint*> m_touches;
 
 struct sdl_input *sdl_inputs;
 int sdl_numjoysticks, sdl_numcontrollers;
@@ -311,6 +324,48 @@ void inputFree() {
     }
 }
 
+void touchUpdate() {
+    bool touchState[COUNT(Input::touch)];
+
+    for (int i = 0; i < COUNT(Input::touch); i++)
+        touchState[i] = Input::down[ikTouchA + i];
+
+    std::list<TouchPoint*>::iterator it;
+    for (it=m_touches.begin(); it != m_touches.end(); ++it) {
+        InputKey key = Input::getTouch((*it)->id);
+        if (key == ikNone)
+            continue;
+        float x, y;
+
+#ifdef _FORCE_LANDSCAPE
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+        x = (*it)->y * Core::height;
+        y = (1.0f - (*it)->x) * Core::width;
+#else
+        x = (*it)->y;
+        y = Core::width - (*it)->x;
+#endif
+#else
+#if SDL_VERSION_ATLEAST(2, 0, 16)
+        x = (*it)->x * Core::width
+        y = (*it)->y * Core::height;
+#else
+        x = (*it)->x;
+        y = (*it)->y;
+#endif
+#endif
+        Input::setPos(key, vec2(x, y));
+        Input::setDown(key, true);
+
+        touchState[key - ikTouchA] = false;
+    }
+
+    for (int i = 0; i < COUNT(Input::touch); i++) {
+        if (touchState[i])
+            Input::setDown(InputKey(ikTouchA + i), false);
+    }
+}
+
 float joyAxisValue(int value) {
     if (value > -JOY_DEAD_ZONE_STICK && value < JOY_DEAD_ZONE_STICK)
         return 0.0f;
@@ -356,6 +411,32 @@ void inputUpdate() {
                 InputKey key = codeToInputKey(scancode);
                 if (key != ikNone)
                     Input::setDown(key, 0);
+                break;
+            }
+
+            case SDL_FINGERDOWN: {
+                TouchPoint *touch = new TouchPoint(event.tfinger.fingerId,
+                        event.tfinger.x, event.tfinger.y);
+                m_touches.push_back(touch);
+                touchUpdate();
+                break;
+            }
+            case SDL_FINGERUP:
+            case SDL_FINGERMOTION: {
+                std::list<TouchPoint*>::iterator it;
+                for (it=m_touches.begin(); it != m_touches.end(); ++it) {
+                    TouchPoint *touch = *it;
+                    if (touch->id == event.tfinger.fingerId) {
+                        if (event.type == SDL_FINGERMOTION) {
+                            touch->x = event.tfinger.x;
+                            touch->y = event.tfinger.y;
+                        } else {
+                            m_touches.erase(it);
+                        }
+                        break;
+                    }
+                }
+                touchUpdate();
                 break;
             }
 
@@ -584,6 +665,10 @@ int main(int argc, char **argv) {
 
     sndFree();
     Game::deinit();
+
+    std::list<TouchPoint*>::iterator it;
+    for (it=m_touches.begin(); it != m_touches.end(); ++it)
+        delete *it;
 
     SDL_DestroyWindow(sdl_window);
     SDL_Quit();
