@@ -1,0 +1,55 @@
+SRCS=main.cpp \
+     ../../libs/stb_vorbis/stb_vorbis.c \
+     ../../libs/minimp3/minimp3.cpp \
+     ../../libs/tinf/tinflate.c
+
+OBJS=main.o \
+     ../../libs/stb_vorbis/stb_vorbis.o \
+     ../../libs/minimp3/minimp3.o \
+     ../../libs/tinf/tinflate.o
+
+BIN=harbour-openlara
+
+SDL_CFLAGS := $(shell sdl2-config --cflags)
+SDL_LDFLAGS := $(shell sdl2-config --libs)
+
+PKGCONFIG_CFLAGS := $(shell pkg-config --cflags audioresource glib-2.0 keepalive-glib wayland-client)
+PKGCONFIG_LDFLAGS := $(shell pkg-config --libs audioresource glib-2.0 keepalive-glib wayland-client)
+
+#-fPIC
+CFLAGS+=-D__SDL2__ -D__SAILFISH__ -DSDL2_GLES -D_GAPI_GLES2 -std=c++11 -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections -Wl,--gc-sections $(SDL_CFLAGS) $(PKGCONFIG_CFLAGS)
+LDFLAGS+=-lGLESv2 -lEGL -lpthread -lm -lrt $(SDL_LDFLAGS) $(PKGCONFIG_LDFLAGS)
+
+ifeq ($(PREFIX),)
+    PREFIX := /usr
+endif
+
+INCLUDES+=-I../../
+
+%.o: %.c
+	${CXX} $(INCLUDES) $(CFLAGS)  -c $^ -o $@
+
+%.o: %.cpp
+	${CXX} $(INCLUDES) $(CFLAGS)  -c $^ -o $@
+
+$(BIN): $(OBJS)
+	@rm -f $@
+	$(CXX) -o $@ $(OBJS) $(LDFLAGS)
+
+install: $(BIN)
+	install -d $(DESTDIR)$(PREFIX)/bin/
+	install -m 755 $(BIN) $(DESTDIR)$(PREFIX)/bin/
+	install -d $(DESTDIR)$(PREFIX)/share/applications/
+	install -d $(DESTDIR)$(PREFIX)/share/icons/hicolor/86x86/apps/
+	install -d $(DESTDIR)$(PREFIX)/share/icons/hicolor/108x108/apps/
+	install -d $(DESTDIR)$(PREFIX)/share/icons/hicolor/128x128/apps/
+	install -d $(DESTDIR)$(PREFIX)/share/icons/hicolor/172x172/apps/
+	install -m 644 sailfish/*.desktop $(DESTDIR)$(PREFIX)/share/applications/
+	install -m 644 sailfish/86x86/$(BIN).png $(DESTDIR)$(PREFIX)/share/icons/hicolor/86x86/apps/
+	install -m 644 sailfish/108x108/$(BIN).png $(DESTDIR)$(PREFIX)/share/icons/hicolor/108x108/apps/
+	install -m 644 sailfish/128x128/$(BIN).png $(DESTDIR)$(PREFIX)/share/icons/hicolor/128x128/apps/
+	install -m 644 sailfish/172x172/$(BIN).png $(DESTDIR)$(PREFIX)/share/icons/hicolor/172x172/apps/
+
+clean:
+	@rm -f $(BIN)
+	@rm -f $(OBJS)

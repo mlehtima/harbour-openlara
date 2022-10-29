@@ -8,9 +8,21 @@
 
 #include <SDL2/SDL.h>
 
+#ifdef __SAILFISH__
+#include <audioresource.h>
+#include <glib.h>
+#include <keepalive-glib/keepalive-displaykeepalive.h>
+#include <SDL2/SDL_syswm.h>
+#include <wayland-client.h>
+#endif
+
 #include "game.h"
 
+#ifdef __SAILFISH__
+#define WND_TITLE    "harbour-openlara"
+#else
 #define WND_TITLE    "OpenLara"
+#endif
 
 // timing
 unsigned int startTime;
@@ -26,8 +38,11 @@ int osGetTimeMS() {
 #define SND_FRAMES      1024
 
 // A Frame is a struct containing: int16 L, int16 R.
-Sound::Frame        *sndData;
-SDL_AudioDeviceID sdl_audiodev;
+Sound::Frame        *sndData = NULL;
+SDL_AudioDeviceID sdl_audiodev = 0;
+#ifdef __SAILFISH__
+audioresource_t *audio_resource = NULL;
+#endif
 
 void sndFill(void *udata, Uint8 *stream, int len) {
         // Let's milk the audio subsystem for SND_FRAMES frames!
@@ -73,10 +88,36 @@ bool sndInit() {
 void sndFree() {
     SDL_PauseAudioDevice(sdl_audiodev,1);
     SDL_CloseAudioDevice(sdl_audiodev);
+    sdl_audiodev = 0;
 
     // Delete the audio buffer
     delete[] sndData;
+    sndData = NULL;
 }
+
+#ifdef __SAILFISH__
+void on_audio_resource_acquired(audioresource_t *audio_resource, bool acquired, void *user_data) {
+    /**
+     * This function will be called from libaudioresource every time the
+     * acquired status of a given audio resource changes. In particular, it
+     * will be called with acquired=true when the application can start playing
+     * audio, and will be called with acquired=false when the application must
+     * stop playing audio (for example, when a higher priority audio stream such
+     * as a different media player or phone call comes in).
+     **/
+    if (acquired && sdl_audiodev == 0) {
+        LOG("Audio resource acquired.\n");
+        sndInit();
+    } else if (!acquired && sdl_audiodev != 0) {
+        LOG("Audio resource lost.\n");
+        // Must stop playing back audio here, otherwise writes to the audio device
+        // will block. As long as we have requested the resource, the callback will
+        // be called again once the audio resource is again ready for our use (e.g.
+        // when the higher-priority audio has finished).
+        sndFree();
+    }
+}
+#endif
 
 // Input
 
@@ -102,6 +143,9 @@ SDL_Joystick *sdl_joysticks[MAX_JOYS];
 SDL_GameController *sdl_controllers[MAX_JOYS];
 SDL_Window *sdl_window;
 SDL_DisplayMode sdl_displaymode;
+#ifdef __SAILFISH__
+displaykeepalive_t *displaykeepalive;
+#endif
 
 bool fullscreen;
 
@@ -414,6 +458,19 @@ void inputUpdate() {
                 break;
             }
 
+#ifdef __SAILFISH__
+            case SDL_WINDOWEVENT:
+                if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+                    displaykeepalive_start(displaykeepalive);
+                } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+                    displaykeepalive_stop(displaykeepalive);
+                }
+                break;
+            case SDL_QUIT:
+                Core::quit();
+                break;
+#endif
+
             case SDL_FINGERDOWN: {
                 TouchPoint *touch = new TouchPoint(event.tfinger.fingerId,
                         event.tfinger.x, event.tfinger.y);
@@ -589,6 +646,16 @@ int main(int argc, char **argv) {
         }
     }
 
+#ifdef __SAILFISH__
+    if (contentDir[0] == 0) {
+        const char *home;
+        if (!(home = getenv("HOME")))
+            home = getpwuid(getuid())->pw_dir;
+        strcat(contentDir, home);
+        strcat(contentDir, "/.local/share/harbour-openlara/");
+    }
+#endif
+
     size_t contentDirLen = strlen(contentDir);
 
     if (contentDirLen > 0 &&
@@ -604,6 +671,26 @@ int main(int argc, char **argv) {
 
     SDL_GetCurrentDisplayMode(0, &sdl_displaymode);
 
+#ifdef _FORCE_LANDSCAPE
+    SDL_DisplayOrientation orientation = SDL_GetDisplayOrientation(0);
+    switch (orientation) {
+        case SDL_ORIENTATION_LANDSCAPE:
+        case SDL_ORIENTATION_LANDSCAPE_FLIPPED:
+            w = sdl_displaymode.h;
+            h = sdl_displaymode.w;
+            break;
+        case SDL_ORIENTATION_UNKNOWN:
+        case SDL_ORIENTATION_PORTRAIT:
+        case SDL_ORIENTATION_PORTRAIT_FLIPPED:
+            h = sdl_displaymode.h;
+            w = sdl_displaymode.w;
+            break;
+    }
+#else
+    h = sdl_displaymode.h;
+    w = sdl_displaymode.w;
+#endif
+
 #ifdef _GAPI_GLES
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
 #endif
@@ -616,12 +703,21 @@ int main(int argc, char **argv) {
     /* In GLES, start in fullscreen mode using the vide mode currently in use. */
     sdl_window = SDL_CreateWindow(WND_TITLE, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
 #ifdef _GAPI_GLES
-        sdl_displaymode.w, sdl_displaymode.h, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN_DESKTOP
+        w, h, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_FULLSCREEN_DESKTOP
 #else
         WIN_W, WIN_H, SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN
 #endif
     ); 
- 
+
+#ifdef __SAILFISH__
+    // Set content orientation for compositor to correctly handle global gestures
+    SDL_SysWMinfo info;
+    SDL_VERSION(&info.version);
+    bool res = SDL_GetWindowWMInfo(sdl_window, &info);
+    wl_surface *sdl_wl_surface = info.info.wl.surface;
+    wl_surface_set_buffer_transform(sdl_wl_surface, WL_OUTPUT_TRANSFORM_270);
+#endif
+
     // We try to use the current video mode, but we inform the core of whatever mode SDL2 gave us in the end. 
     SDL_GetWindowSize(sdl_window, &w, &h);
 
@@ -636,7 +732,11 @@ int main(int argc, char **argv) {
     if (!(home = getenv("HOME")))
         home = getpwuid(getuid())->pw_dir;
     strcat(cacheDir, home);
+#ifdef __SAILFISH__
+    strcat(cacheDir, "/.cache/harbour-openlara/");
+#else
     strcat(cacheDir, "/.openlara/");
+#endif
 
     struct stat st = {0};
     if (stat(cacheDir, &st) == -1 && mkdir(cacheDir, 0777) == -1)
@@ -647,7 +747,21 @@ int main(int argc, char **argv) {
     gettimeofday(&t, NULL);
     startTime = t.tv_sec;
 
+#ifdef __SAILFISH__
+    // Create display keepalive
+    displaykeepalive = displaykeepalive_new();
+
+    // Acquire audio resource
+    audio_resource = audioresource_init(AUDIO_RESOURCE_GAME,
+        on_audio_resource_acquired, NULL);
+
+    audioresource_acquire(audio_resource);
+
+    while (sdl_audiodev == 0)
+        g_main_context_iteration(NULL, true);
+#else
     sndInit();
+#endif
 
     inputInit();
 
@@ -661,7 +775,18 @@ int main(int argc, char **argv) {
             Core::waitVBlank();
             SDL_GL_SwapWindow(sdl_window);
         }
+#ifdef __SAILFISH__
+        // For display keepalive
+        g_main_context_iteration(NULL, false);
+#endif
     };
+
+#ifdef __SAILFISH__
+    // Release audio resource
+    audioresource_release(audio_resource);
+    // Release display keepalive
+    displaykeepalive_unref(displaykeepalive);
+#endif
 
     sndFree();
     Game::deinit();
@@ -670,6 +795,7 @@ int main(int argc, char **argv) {
     for (it=m_touches.begin(); it != m_touches.end(); ++it)
         delete *it;
 
+    SDL_GL_DeleteContext(context);
     SDL_DestroyWindow(sdl_window);
     SDL_Quit();
 

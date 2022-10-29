@@ -64,6 +64,10 @@
     #define INV_QUALITY
     #define INV_STEREO
 #elif __SDL2__
+#ifdef __SAILFISH__
+    #define _OS_SAILFISH     1
+    #define _FORCE_LANDSCAPE 1
+#endif
     #define _GAPI_GL   1
     #ifdef SDL2_GLES
         #define _GAPI_GLES 1

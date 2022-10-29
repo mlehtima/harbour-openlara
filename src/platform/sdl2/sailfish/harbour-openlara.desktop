@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=OpenLara
+Exec=harbour-openlara
+Icon=harbour-openlara
+Type=Application
+X-Nemo-Application-Type=no-invoker
+
+[X-Sailjail]
+Permissions=Audio
