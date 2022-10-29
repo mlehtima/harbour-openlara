@@ -3208,7 +3208,7 @@ struct Lara : Character {
 
                         vec4 p = game->projectPoint(vec4(item->pos, 1.0f));
 
-                        #ifdef _OS_WP8
+                        #ifdef _FORCE_LANDSCAPE
                             swap(p.x, p.y);
                         #endif
 

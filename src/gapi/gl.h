@@ -1484,12 +1484,27 @@ namespace GAPI {
     mat4 ortho(float l, float r, float b, float t, float znear, float zfar) {
         mat4 m;
         m.ortho(getProjRange(), l, r, b, t, znear, zfar);
+
+        #ifdef _FORCE_LANDSCAPE
+            m.rot90();
+        #endif
+
         return m;
     }
 
     mat4 perspective(float fov, float aspect, float znear, float zfar, float eye) {
         mat4 m;
+
+        #ifdef _FORCE_LANDSCAPE
+            aspect = 1.0f / aspect;
+        #endif
+
         m.perspective(getProjRange(), fov, aspect, znear, zfar, eye);
+
+        #ifdef _FORCE_LANDSCAPE
+            m.rot90();
+        #endif
+
         return m;
     }
 

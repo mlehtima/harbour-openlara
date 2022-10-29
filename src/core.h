@@ -14,8 +14,9 @@
 #define USE_CUBEMAP_MIPS
 
 #if defined(WINAPI_FAMILY) && (WINAPI_FAMILY == WINAPI_FAMILY_PHONE_APP)
-    #define _OS_WP8      1
-    #define _GAPI_D3D11  1
+    #define _OS_WP8          1
+    #define _GAPI_D3D11      1
+    #define _FORCE_LANDSCAPE 1
 
     #undef OS_PTHREAD_MT
 

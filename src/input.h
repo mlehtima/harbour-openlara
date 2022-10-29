@@ -211,7 +211,7 @@ namespace Input {
 
     int32 getTouchWidth()
     {
-    #ifdef _OS_WP8
+    #ifdef _FORCE_LANDSCAPE
         return Core::height;
     #else
         return Core::width;
@@ -220,7 +220,7 @@ namespace Input {
 
     int32 getTouchHeight()
     {
-    #ifdef _OS_WP8
+    #ifdef _FORCE_LANDSCAPE
         return Core::width;
     #else
         return Core::height;

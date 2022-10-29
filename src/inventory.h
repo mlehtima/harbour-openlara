@@ -1736,7 +1736,7 @@ struct Inventory {
 
         float aspectDst = float(Core::width) / float(Core::height) * Core::aspectFix;
 
-        #ifdef _OS_WP8
+        #ifdef _FORCE_LANDSCAPE
             aspectDst = 1.0f / aspectDst;
         #endif
 

@@ -791,7 +791,7 @@ namespace GAPI {
         mat4 m;
         m.ortho(getProjRange(), l, r, b, t, znear, zfar);
 
-        #ifdef _OS_WP8
+        #ifdef _FORCE_LANDSCAPE
             m.rot90();
         #endif
 
@@ -801,13 +801,13 @@ namespace GAPI {
     mat4 perspective(float fov, float aspect, float znear, float zfar, float eye) {
         mat4 m;
 
-        #ifdef _OS_WP8
+        #ifdef _FORCE_LANDSCAPE
             aspect = 1.0f / aspect;
         #endif
 
         m.perspective(getProjRange(), fov, aspect, znear, zfar, eye);
 
-        #ifdef _OS_WP8
+        #ifdef _FORCE_LANDSCAPE
             m.rot90();
         #endif
 

@@ -981,7 +981,7 @@ struct WaterCache {
 
         mat4 mProj = GAPI::ortho(0.0f, float(tex->origWidth), 0.0f, float(tex->origHeight), 0.0f, 1.0f);
 
-    #ifdef _OS_WP8
+    #ifdef _FORCE_LANDSCAPE
         mProj.unrot90();
     #endif
 

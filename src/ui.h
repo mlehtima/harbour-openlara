@@ -267,7 +267,7 @@ namespace UI {
     void begin(float aspect) {
         ensureLanguage(Core::settings.audio.language);
 
-        #ifdef _OS_WP8
+        #ifdef _FORCE_LANDSCAPE
             aspect = 1.0f / aspect;
         #endif
 
