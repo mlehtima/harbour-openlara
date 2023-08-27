@@ -32,7 +32,6 @@ Categories:
  - Game
 Custom:
   PackagingRepo: https://github.com/mlehtima/harbour-openlara
-  Repo: https://github.com/XProger/OpenLara
 PackageIcon: https://github.com/mlehtima/harbour-openlara/raw/master/rpm/harbour-openlara.svg
 Screenshots:
  - https://github.com/mlehtima/harbour-openlara/raw/master/screenshots/screenshot1.png
